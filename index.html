@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SC Process Mapping Dashboard — waterdrop</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0" integrity="sha384-cVMg8E3QFwTvGCDuK+ET4PD341jF3W8nO1auiXfuZNQkzbUUiBGLsIQUE+b1mxws" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #0B0D17;
+      --card: #12141F;
+      --card2: #191C2B;
+      --border: #252838;
+      --text: #E4E6F0;
+      --muted: #6B6F85;
+      --accent: #3B82F6;
+      --dsp: #22C55E;
+      --dsp-dark: #16A34A;
+      --dsp-bg: rgba(34,197,94,0.1);
+      --ob: #A855F7;
+      --ob-dark: #9333EA;
+      --ob-bg: rgba(168,85,247,0.1);
+      --tr: #3B82F6;
+      --tr-dark: #2563EB;
+      --tr-bg: rgba(59,130,246,0.1);
+      --complete: #22C55E;
+      --nearly: #84CC16;
+      --inprog: #F59E0B;
+      --struct: #F97316;
+      --notstart: #374151;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+    .wrap { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+    /* HEADER */
+    .header {
+      background: linear-gradient(135deg, #0F1628 0%, #1A1035 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .header-left h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.3px;
+    }
+    .header-left .subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .header-badges {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .badge-dsp { background: var(--dsp-bg); color: var(--dsp); border: 1px solid rgba(34,197,94,0.3); }
+    .badge-ob  { background: var(--ob-bg);  color: var(--ob);  border: 1px solid rgba(168,85,247,0.3); }
+    .badge-tr  { background: var(--tr-bg);  color: var(--tr);  border: 1px solid rgba(59,130,246,0.3); }
+
+    /* KPI ROW */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .kpi {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 16px;
+      text-align: center;
+    }
+    .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; }
+    .kpi-value { font-size: 28px; font-weight: 800; color: #fff; }
+    .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .kpi-value.green { color: var(--complete); }
+    .kpi-value.yellow { color: var(--inprog); }
+    .kpi-value.purple { color: var(--ob); }
+    .kpi-value.blue { color: var(--tr); }
+
+    /* GRID LAYOUTS */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .grid-1 { margin-bottom: 16px; }
+    .grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+    /* CARDS */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .card-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .card canvas { display: block; }
+
+    /* TEAM CARDS */
+    .team-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .team-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+    .team-dsp::before { background: var(--dsp); }
+    .team-ob::before  { background: var(--ob); }
+    .team-tr::before  { background: var(--tr); }
+    .team-name { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .team-count { font-size: 11px; color: var(--muted); margin-bottom: 14px; }
+    .team-big-num { font-size: 36px; font-weight: 800; margin-bottom: 2px; }
+    .team-big-label { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+    .team-pct-bar {
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .team-pct-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+    .team-mini-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+    .mini-stat { font-size: 11px; color: var(--muted); }
+    .mini-stat span { font-weight: 600; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 3px; }
+
+    /* HEALTH INDICATOR */
+    .health-card { display: flex; flex-direction: column; gap: 12px; }
+    .health-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--card2);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .health-label { font-size: 12px; font-weight: 600; color: var(--text); }
+    .health-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .health-pill {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .pill-green { background: rgba(34,197,94,0.15); color: var(--complete); }
+    .pill-yellow { background: rgba(245,158,11,0.15); color: var(--inprog); }
+    .pill-orange { background: rgba(249,115,22,0.15); color: var(--struct); }
+
+    /* PERSON TABLE */
+    .person-table { width: 100%; border-collapse: collapse; }
+    .person-table th {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
+      color: var(--muted); text-align: left; padding: 6px 10px;
+      border-bottom: 1px solid var(--border); font-weight: 600;
+    }
+    .person-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid rgba(37,40,56,0.5);
+      font-size: 12px;
+      vertical-align: middle;
+    }
+    .person-table tr:last-child td { border-bottom: none; }
+    .person-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .name-cell { font-weight: 600; color: var(--text); font-size: 13px; }
+    .team-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .tag-dsp { background: var(--dsp-bg); color: var(--dsp); }
+    .tag-ob  { background: var(--ob-bg);  color: var(--ob); }
+    .tag-tr  { background: var(--tr-bg);  color: var(--tr); }
+    .bar-wrap { width: 140px; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; display: flex; }
+    .bar-seg { height: 100%; }
+    .finish-date { font-size: 11px; color: var(--muted); }
+    .finish-date.heavy { color: var(--struct); font-weight: 600; }
+
+    /* LEGEND PILLS */
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+    .legend-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+
+    /* BURNDOWN */
+    .burndown-wrap { position: relative; height: 300px; }
+
+    /* COUNTDOWN */
+    .countdown { text-align: center; padding: 10px 0; }
+    .countdown-num { font-size: 48px; font-weight: 900; color: var(--tr); }
+    .countdown-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; margin-top: 4px; }
+    .countdown-sub { font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+    /* DOUGHNUT WRAP */
+    .donut-wrap { position: relative; height: 200px; }
+    .donut-center {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      pointer-events: none;
+    }
+    .donut-pct { font-size: 30px; font-weight: 900; color: #fff; }
+    .donut-lbl { font-size: 11px; color: var(--muted); }
+
+    /* BIG RING */
+    .big-ring-wrap { position: relative; height: 260px; }
+    .big-ring-center {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      pointer-events: none;
+    }
+    .big-ring-pct { font-size: 44px; font-weight: 900; color: #fff; }
+    .big-ring-lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .big-ring-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+    /* FOOTER */
+    .footer {
+      text-align: center;
+      padding: 16px;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    @media (max-width: 900px) {
+      .kpi-row { grid-template-columns: repeat(3,1fr); }
+      .grid-2, .grid-2-1, .grid-3 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      .kpi-row { grid-template-columns: repeat(2,1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <h1>📋 Supply Chain Process Mapping Dashboard</h1>
+      <div class="subtitle">waterdrop  ·  Last updated: April 7, 2026 (automated daily check-in — no new completions; 1 new FigJam page: Ad-hoc Transport Requests [Emir, in progress]; 4 maps complete to date)  ·  Next automated check-in: April 8, 2026  ·  Target completion: June 15, 2026</div>
+    </div>
+    <div class="header-badges">
+      <span class="badge badge-dsp">D&SP — 38 maps</span>
+      <span class="badge badge-ob">Outbound — 49 maps</span>
+      <span class="badge badge-tr">Transportation — 12 maps</span>
+    </div>
+  </div>
+
+  <!-- KPI ROW -->
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-label">Total Maps</div>
+      <div class="kpi-value">99</div>
+      <div class="kpi-sub">across 3 teams</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Complete</div>
+      <div class="kpi-value green">4</div>
+      <div class="kpi-sub">4.0% of total</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Actively In Work</div>
+      <div class="kpi-value yellow">13</div>
+      <div class="kpi-sub">nearly done + active</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Not Started</div>
+      <div class="kpi-value">82</div>
+      <div class="kpi-sub">project underway</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Contributors</div>
+      <div class="kpi-value blue">11</div>
+      <div class="kpi-sub">across 3 teams</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Weeks to Target</div>
+      <div class="kpi-value purple" id="weeks-remaining">—</div>
+      <div class="kpi-sub">until Jun 15, 2026</div>
+    </div>
+  </div>
+
+  <!-- ROW 1: Big Ring + Status Donut + Countdown/Health -->
+  <div class="grid-3">
+
+    <!-- Overall Progress Ring -->
+    <div class="card">
+      <div class="card-title">Overall Completion</div>
+      <div class="big-ring-wrap">
+        <canvas id="ringChart"></canvas>
+        <div class="big-ring-center">
+          <div class="big-ring-pct">4%</div>
+          <div class="big-ring-lbl">4 of 99 complete</div>
+          <div class="big-ring-sub">Pre-project start</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Breakdown -->
+    <div class="card">
+      <div class="card-title">Status Breakdown</div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-dot" style="background:var(--complete)"></span>Complete</div>
+        <div class="legend-item"><span class="legend-dot" style="background:var(--nearly)"></span>Nearly Done</div>
+        <div class="legend-item"><span class="legend-dot" style="background:var(--inprog)"></span>In Progress</div>
+        <div class="legend-item"><span class="legend-dot" style="background:var(--struct)"></span>Structural</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#4B5563"></span>Not Started</div>
+      </div>
+      <div class="donut-wrap">
+        <canvas id="statusChart"></canvas>
+        <div class="donut-center">
+          <div class="donut-pct">12</div>
+          <div class="donut-lbl">in active work</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Countdown + Health -->
+    <div class="card" style="display:flex; flex-direction:column; gap:16px;">
+      <div>
+        <div class="card-title">Time Remaining</div>
+        <div class="countdown">
+          <div class="countdown-num" id="days-countdown">73</div>
+          <div class="countdown-label">days to Jun 15, 2026</div>
+          <div class="countdown-sub">11 weeks · Cadence: 2 maps/person/week</div>
+        </div>
+      </div>
+      <div>
+        <div class="card-title">Project Health</div>
+        <div class="health-card">
+          <div class="health-row">
+            <div><div class="health-label">Overall Pace</div><div class="health-sub">Project starts Apr 6</div></div>
+            <span class="health-pill pill-green">ON TRACK</span>
+          </div>
+          <div class="health-row">
+            <div><div class="health-label">Daria Workload</div><div class="health-sub">13 maps — rebalanced Apr 3</div></div>
+            <span class="health-pill pill-orange">MONITOR</span>
+          </div>
+          <div class="health-row">
+            <div><div class="health-label">Emir (Transport)</div><div class="health-sub">12 maps — sole member</div></div>
+            <span class="health-pill pill-yellow">RISK</span>
+          </div>
+          <div class="health-row">
+            <div><div class="health-label">Pain Points</div><div class="health-sub">Most maps missing 3 C's</div></div>
+            <span class="health-pill pill-orange">ACTION NEEDED</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ROW 2: Team Progress Cards -->
+  <div class="grid-3">
+    <div class="team-card team-dsp">
+      <div class="team-name">Demand &amp; Supply Planning</div>
+      <div class="team-count">5 contributors  ·  38 process maps</div>
+      <div class="team-big-num" style="color:var(--dsp)">5.3%</div>
+      <div class="team-big-label">2 of 38 complete</div>
+      <div class="team-pct-bar"><div class="team-pct-fill" style="width:5.3%; background:var(--dsp)"></div></div>
+      <div class="team-mini-stats">
+        <div class="mini-stat"><span class="dot" style="background:var(--complete)"></span><span>2</span> Complete</div>
+        <div class="mini-stat"><span class="dot" style="background:var(--nearly)"></span><span>2</span> Nearly Done</div>
+        <div class="mini-stat"><span class="dot" style="background:var(--inprog)"></span><span>1</span> In Progress</div>
+        <div class="mini-stat"><span class="dot" style="background:#4B5563"></span><span>33</span> Not Started</div>
+      </div>
+    </div>
+    <div class="team-card team-ob">
+      <div class="team-name">Outbound</div>
+      <div class="team-count">6 contributors  ·  49 process maps</div>
+      <div class="team-big-num" style="color:var(--ob)">4.1%</div>
+      <div class="team-big-label">2 of 49 complete</div>
+      <div class="team-pct-bar"><div class="team-pct-fill" style="width:4.1%; background:var(--ob)"></div></div>
+      <div class="team-mini-stats">
+        <div class="mini-stat"><span class="dot" style="background:var(--complete)"></span><span>2</span> Complete</div>
+        <div class="mini-stat"><span class="dot" style="background:var(--nearly)"></span><span>3</span> Nearly Done</div>
+        <div class="mini-stat"><span class="dot" style="background:var(--inprog)"></span><span>4</span> In Progress</div>
+        <div class="mini-stat"><span class="dot" style="background:#4B5563"></span><span>40</span> Not Started</div>
+      </div>
+    </div>
+    <div class="team-card team-tr">
+      <div class="team-name">Transportation</div>
+      <div class="team-count">1 contributor  ·  12 process maps</div>
+      <div class="team-big-num" style="color:var(--tr)">0.0%</div>
+      <div class="team-big-label">0 of 12 complete</div>
+      <div class="team-pct-bar"><div class="team-pct-fill" style="width:0.5%; background:var(--tr)"></div></div>
+      <div class="team-mini-stats">
+        <div class="mini-stat"><span class="dot" style="background:var(--complete)"></span><span>0</span> Complete</div>
+        <div class="mini-stat"><span class="dot" style="background:var(--nearly)"></span><span>2</span> Nearly Done</div>
+        <div class="mini-stat"><span class="dot" style="background:#4B5563"></span><span>10</span> Not Started</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 3: Burndown Chart (full width) -->
+  <div class="card grid-1">
+    <div class="card-title">Completion Burnup — Expected vs Actual  ·  April 6 – June 15, 2026</div>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-dot" style="background:#3B82F6; border-radius:50%"></span>Expected completion curve</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#22C55E; border-radius:50%"></span>Actual completion (updated weekly)</div>
+      <div class="legend-item"><span class="legend-dot" style="background:rgba(245,158,11,0.4); border-radius:2px"></span>Pre-project maps (completed before Apr 6)</div>
+    </div>
+    <div class="burndown-wrap">
+      <canvas id="burndownChart"></canvas>
+    </div>
+  </div>
+
+  <!-- ROW 4: Per-Person Progress + workload bars -->
+  <div class="grid-2-1">
+
+    <!-- Per-person stacked bars -->
+    <div class="card">
+      <div class="card-title">Progress by Contributor  ·  (maps complete / total)</div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-dot" style="background:var(--complete)"></span>Complete</div>
+        <div class="legend-item"><span class="legend-dot" style="background:var(--nearly)"></span>Nearly Done</div>
+        <div class="legend-item"><span class="legend-dot" style="background:var(--inprog)"></span>In Progress</div>
+        <div class="legend-item"><span class="legend-dot" style="background:var(--struct)"></span>Structural</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#374151"></span>Not Started</div>
+      </div>
+      <div style="height:340px;">
+        <canvas id="personChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Detail table -->
+    <div class="card">
+      <div class="card-title">Contributor Summary</div>
+      <table class="person-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Maps</th>
+            <th>Done</th>
+            <th>Finish By</th>
+          </tr>
+        </thead>
+        <tbody id="person-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    Dashboard generated April 3, 2026  ·  Status updated automatically each weekday via Figma API check-in  ·  waterdrop Supply Chain Process Excellence
+  </div>
+
+</div>
+
+<script>
+// ─── DATA ──────────────────────────────────────────────────────────────────
+
+const PEOPLE = [
+  {name:"Aleksandra Ilina",     team:"D&SP",          total:13, complete:1, nearly:0, inprog:0, struct:0, ns:12, finishWk:6,  finishDate:"May 16"},
+  {name:"Cian Corcoran",        team:"D&SP",          total:8,  complete:1, nearly:0, inprog:0, struct:0, ns:7,  finishWk:4,  finishDate:"May 2"},
+  {name:"Ekaterina Ivanova",    team:"D&SP",          total:3,  complete:0, nearly:1, inprog:0, struct:0, ns:2,  finishWk:2,  finishDate:"Apr 18"},
+  {name:"Giacomo Scionti",      team:"D&SP",          total:7,  complete:0, nearly:1, inprog:0, struct:0, ns:6,  finishWk:4,  finishDate:"May 2"},
+  {name:"Szymon Ber",           team:"D&SP",          total:7,  complete:0, nearly:0, inprog:1, struct:0, ns:6,  finishWk:4,  finishDate:"May 2"},
+  {name:"Lukas Varga",          team:"Outbound",      total:8,  complete:0, nearly:0, inprog:1, struct:0, ns:7,  finishWk:4,  finishDate:"May 2"},
+  {name:"Martina Restelli",     team:"Outbound",      total:7,  complete:0, nearly:1, inprog:0, struct:0, ns:6,  finishWk:4,  finishDate:"Apr 27"},
+  {name:"Francesco Di Lorenzo", team:"Outbound",      total:3,  complete:0, nearly:1, inprog:1, struct:0, ns:1,  finishWk:1,  finishDate:"Apr 13"},
+  {name:"Joana Moreira",        team:"Outbound",      total:10, complete:1, nearly:1, inprog:0, struct:0, ns:7,  finishWk:5,  finishDate:"May 4"},
+  {name:"Cecilia Takacs-Toth",  team:"Outbound",      total:8,  complete:1, nearly:0, inprog:1, struct:0, ns:6,  finishWk:4,  finishDate:"Apr 27"},
+  {name:"Daria Sibilia",        team:"Outbound",      total:13, complete:0, nearly:0, inprog:1, struct:0, ns:12, finishWk:7,  finishDate:"May 18"},
+  {name:"Emir Guenduez",        team:"Transportation",total:12, complete:0, nearly:2, inprog:1, struct:0, ns:9,  finishWk:6,  finishDate:"May 16"},
+];
+
+// Burnup data: expected cumulative completions starting Apr 6, 2026
+// (2 maps were pre-completed before the project start)
+const BURNUP = [
+  {date:"2026-03-31", expected:null,  actual:2},   // pre-project baseline
+  {date:"2026-04-01", expected:null,  actual:2},   // automated check-in (no new completions)
+  {date:"2026-04-02", expected:null,  actual:2},   // automated check-in (no new completions, project starts Apr 6)
+  {date:"2026-04-03", expected:null,  actual:4},   // B2B Engraving ✅ (Cecilia) + JV Order Intake ✅ (Joana, confirmed by Ben); 7 processes rebalanced from Daria; B2B Lead Journey excluded from project
+  {date:"2026-04-06", expected:2,     actual:null},   // project start
+  {date:"2026-04-07", expected:null,  actual:4},      // no new completions; 1 new map in progress: Adhoc Transport [Emir]
+  {date:"2026-04-11", expected:25,    actual:null},
+  {date:"2026-04-18", expected:46,    actual:null},
+  {date:"2026-04-25", expected:64,    actual:null},
+  {date:"2026-05-02", expected:78,    actual:null},
+  {date:"2026-05-09", expected:84,    actual:null},
+  {date:"2026-05-16", expected:90,    actual:null},
+  {date:"2026-05-23", expected:92,    actual:null},
+  {date:"2026-05-30", expected:94,    actual:null},
+  {date:"2026-06-06", expected:96,    actual:null},
+  {date:"2026-06-13", expected:98,    actual:null},
+  {date:"2026-06-15", expected:99,    actual:null},
+];
+
+const STATUS_COLORS = {
+  complete:"#22C55E", nearly:"#84CC16", inprog:"#F59E0B", struct:"#F97316", ns:"#374151"
+};
+const TEAM_COLORS = {"D&SP":"#22C55E", "Outbound":"#A855F7", "Transportation":"#3B82F6"};
+
+// ─── COUNTDOWN ─────────────────────────────────────────────────────────────
+
+(function() {
+  const today = new Date("2026-04-07");
+  const target = new Date("2026-06-15");
+  const ms = target - today;
+  const days = Math.ceil(ms / (1000*60*60*24));
+  const weeks = Math.ceil(days / 7);
+  document.getElementById("days-countdown").textContent = days;
+  document.getElementById("weeks-remaining").textContent = weeks;
+})();
+
+// ─── CHART DEFAULTS ────────────────────────────────────────────────────────
+
+Chart.defaults.color = "#6B6F85";
+Chart.defaults.borderColor = "#252838";
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+// ─── CHART 1: Overall Ring ─────────────────────────────────────────────────
+
+new Chart(document.getElementById("ringChart"), {
+  type: "doughnut",
+  data: {
+    labels: ["Complete", "Remaining"],
+    datasets: [{
+      data: [4, 95],
+      backgroundColor: ["#22C55E", "#1E2030"],
+      borderColor: ["#22C55E", "#252838"],
+      borderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    cutout: "78%",
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.label}: ${ctx.parsed} maps (${((ctx.parsed/99)*100).toFixed(1)}%)`
+        }
+      }
+    }
+  }
+});
+
+// ─── CHART 2: Status Donut ─────────────────────────────────────────────────
+
+new Chart(document.getElementById("statusChart"), {
+  type: "doughnut",
+  data: {
+    labels: ["Complete (4)", "Nearly Done (7)", "In Progress (6)", "Structural (0)", "Not Started (82)"],
+    datasets: [{
+      data: [4, 7, 6, 0, 82],
+      backgroundColor: ["#22C55E","#84CC16","#F59E0B","#F97316","#374151"],
+      borderColor: "#12141F",
+      borderWidth: 3,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    cutout: "60%",
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.label}: ${((ctx.parsed/99)*100).toFixed(1)}% of all maps`
+        }
+      }
+    }
+  }
+});
+
+// ─── CHART 3: Burnup ───────────────────────────────────────────────────────
+
+new Chart(document.getElementById("burndownChart"), {
+  type: "line",
+  data: {
+    labels: BURNUP.map(d => d.date),
+    datasets: [
+      {
+        label: "Expected",
+        data: BURNUP.map(d => d.expected),
+        borderColor: "#3B82F6",
+        backgroundColor: "rgba(59,130,246,0.08)",
+        borderWidth: 2.5,
+        fill: true,
+        tension: 0.35,
+        pointRadius: d => 4,
+        pointBackgroundColor: "#3B82F6",
+        spanGaps: true,
+      },
+      {
+        label: "Actual",
+        data: BURNUP.map(d => d.actual),
+        borderColor: "#22C55E",
+        backgroundColor: "rgba(34,197,94,0.12)",
+        borderWidth: 3,
+        fill: false,
+        tension: 0.1,
+        pointRadius: 7,
+        pointBackgroundColor: "#22C55E",
+        pointBorderColor: "#12141F",
+        pointBorderWidth: 2,
+        spanGaps: false,
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: "index", intersect: false },
+    scales: {
+      x: {
+        type: "time",
+        time: { unit: "week", displayFormats: { week: "MMM d" } },
+        min: "2026-03-28",
+        max: "2026-06-20",
+        grid: { color: "#1E2030" },
+        ticks: { color: "#6B6F85", maxTicksLimit: 12 },
+      },
+      y: {
+        min: 0, max: 99,
+        grid: { color: "#1A1C28" },
+        ticks: {
+          color: "#6B6F85",
+          callback: v => `${v} maps`
+        },
+        title: { display: true, text: "Cumulative maps completed", color: "#6B6F85", font: { size: 11 } }
+      }
+    },
+    plugins: {
+      legend: {
+        labels: { color: "#9CA3AF", usePointStyle: true, pointStyleWidth: 10, padding: 20 }
+      },
+      tooltip: {
+        backgroundColor: "#1E2030",
+        borderColor: "#252838",
+        borderWidth: 1,
+        callbacks: {
+          label: ctx => {
+            if (ctx.parsed.y === null) return null;
+            const pct = ((ctx.parsed.y/99)*100).toFixed(1);
+            return ` ${ctx.dataset.label}: ${ctx.parsed.y} maps (${pct}%)`;
+          }
+        }
+      },
+      annotation: {}
+    }
+  }
+});
+
+// ─── CHART 4: Per-Person Horizontal Stacked Bar ────────────────────────────
+
+const personLabels = PEOPLE.map(p => {
+  const first = p.name.split(" ")[0];
+  const pct = ((p.complete / p.total) * 100).toFixed(0);
+  return `${first} (${p.complete}/${p.total})`;
+});
+
+new Chart(document.getElementById("personChart"), {
+  type: "bar",
+  data: {
+    labels: personLabels,
+    datasets: [
+      {
+        label: "Complete",
+        data: PEOPLE.map(p => (p.complete / p.total) * 100),
+        backgroundColor: "#22C55E",
+        borderRadius: { topLeft: 0, bottomLeft: 0, topRight: 0, bottomRight: 0 },
+      },
+      {
+        label: "Nearly Done",
+        data: PEOPLE.map(p => (p.nearly / p.total) * 100),
+        backgroundColor: "#84CC16",
+      },
+      {
+        label: "In Progress",
+        data: PEOPLE.map(p => (p.inprog / p.total) * 100),
+        backgroundColor: "#F59E0B",
+      },
+      {
+        label: "Structural",
+        data: PEOPLE.map(p => (p.struct / p.total) * 100),
+        backgroundColor: "#F97316",
+      },
+      {
+        label: "Not Started",
+        data: PEOPLE.map(p => (p.ns / p.total) * 100),
+        backgroundColor: "#2D3140",
+      }
+    ]
+  },
+  options: {
+    indexAxis: "y",
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        backgroundColor: "#1E2030",
+        borderColor: "#252838",
+        borderWidth: 1,
+        callbacks: {
+          label: ctx => {
+            const p = PEOPLE[ctx.dataIndex];
+            const key = ["complete","nearly","inprog","struct","ns"][ctx.datasetIndex];
+            const count = p[key];
+            const pct = ((count / p.total) * 100).toFixed(0);
+            return ` ${ctx.dataset.label}: ${count} maps (${pct}%)`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        stacked: true,
+        min: 0, max: 100,
+        grid: { color: "#1A1C28" },
+        ticks: { color: "#6B6F85", callback: v => `${v}%` }
+      },
+      y: {
+        stacked: true,
+        grid: { display: false },
+        ticks: { color: "#C4C6D4", font: { size: 11 } }
+      }
+    }
+  }
+});
+
+// ─── PERSON TABLE ──────────────────────────────────────────────────────────
+
+const tbody = document.getElementById("person-table-body");
+PEOPLE.forEach(p => {
+  const tagClass = p.team === "D&SP" ? "tag-dsp" : p.team === "Outbound" ? "tag-ob" : "tag-tr";
+  const pct = ((p.complete / p.total) * 100).toFixed(0);
+  const heavy = p.total >= 15;
+
+  // Mini stacked bar
+  const segs = [
+    {pct: (p.complete/p.total)*100, color:"#22C55E"},
+    {pct: (p.nearly/p.total)*100, color:"#84CC16"},
+    {pct: (p.inprog/p.total)*100, color:"#F59E0B"},
+    {pct: (p.struct/p.total)*100, color:"#F97316"},
+    {pct: (p.ns/p.total)*100, color:"#2D3140"},
+  ];
+  const barHTML = segs.map(s => `<div class="bar-seg" style="width:${s.pct}%;background:${s.color}"></div>`).join("");
+
+  tbody.innerHTML += `
+    <tr>
+      <td>
+        <div class="name-cell">${p.name.split(" ")[0]}</div>
+        <div style="margin-top:2px"><span class="team-tag ${tagClass}">${p.team}</span></div>
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="bar-wrap">${barHTML}</div>
+          <span style="font-size:11px;color:var(--muted);white-space:nowrap">${p.total} total</span>
+        </div>
+      </td>
+      <td><span style="font-weight:700;color:${p.complete > 0 ? '#22C55E' : 'var(--muted)'};">${p.complete}</span></td>
+      <td><span class="finish-date ${heavy ? 'heavy' : ''}">${p.finishDate}${heavy ? ' ⚠️' : ''}</span></td>
+    </tr>`;
+});
+
+</script>
+</body>
+</html>
